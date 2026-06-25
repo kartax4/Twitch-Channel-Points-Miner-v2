@@ -151,6 +151,10 @@ screenshots/*
 htmls/*
 analytics/*
 
+# Local runtime config (keep the example, ignore the real one)
+config/config.yaml
+!config/config.example.yaml
+
 # Replit
 keep_replit_alive.py
 .replit

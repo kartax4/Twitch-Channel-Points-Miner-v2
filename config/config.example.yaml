@@ -1,0 +1,53 @@
+# Twitch Miner configuration.
+#
+# Copy this file to config/config.yaml and edit it. The `streamers` and
+# `drops.channels` sections are hot-reloaded: edit them while the miner runs and
+# changes are applied without a restart.
+#
+# Any value can also be overridden via environment variables, e.g.:
+#   TWITCH_MINER__TWITCH__USERNAME=myuser
+#   TWITCH_MINER__ANALYTICS__PORT=8080
+
+twitch:
+  username: my_twitch_login
+
+# Streamers to watch for channel points.
+streamers:
+  - name: streamer_a
+    watch_streak: true
+    follow_raid: true
+    claim_moments: true
+  - name: streamer_b
+
+# Twitch Drops farming. `channels` can be edited live (hot-reloaded).
+drops:
+  enabled: true
+  claim_on_startup: true
+  sync_interval_seconds: 60
+  channels:
+    - game_streamer_1
+    - game_streamer_2
+
+# Watch-loop tuning. Twitch only credits ~2 concurrent streams.
+watch:
+  max_concurrent: 2
+  interval_seconds: 60
+  priority:
+    - DROPS
+    - ORDER
+    - POINTS_DESCENDING
+
+# Analytics dashboard.
+analytics:
+  enabled: true
+  host: 0.0.0.0
+  port: 5000
+  refresh_minutes: 5
+  days_ago: 7
+
+logging:
+  level: INFO
+  file: true
+  rotation: "10 MB"
+  retention: "7 days"
+  colored: true

@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "twitch-miner"
+version = "2.0.0"
+description = "Modern asynchronous Twitch channel points & drops miner"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "Twitch Miner Contributors" }]
+keywords = ["twitch", "channel-points", "drops", "asyncio", "miner"]
+dependencies = [
+    "httpx>=0.27",
+    "websockets>=12.0",
+    "aiohttp>=3.9",
+    "pydantic>=2.6",
+    "pyyaml>=6.0",
+    "watchfiles>=0.21",
+    "loguru>=0.7",
+    "tenacity>=8.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "types-PyYAML",
+]
+
+[project.scripts]
+twitch-miner = "twitch_miner.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["twitch_miner*"]
+
+[tool.setuptools.package-data]
+"twitch_miner.analytics" = ["static/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "ASYNC"]
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

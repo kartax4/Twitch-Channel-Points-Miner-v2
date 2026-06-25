@@ -60,15 +60,13 @@ body:
       label: Logs
       description: |
         How to provide a DEBUG log:
-        1. Set this in your runner script (`run.py`):
-        ```py
-        logger_settings=LoggerSettings(
-          save=True,
-          console_level=logging.INFO,
-          file_level=logging.DEBUG,
-          less=True,
+        1. Set the log level to DEBUG in your `config/config.yaml`:
+        ```yaml
+        logging:
+          level: DEBUG
+          file: true
         ```
-        2. Start the miner, wait for the error, then stop the miner and post the contents of the log file (`logs\username.log`) to https://gist.github.com/ and post a link here.
+        2. Start the miner, wait for the error, then stop the miner and post the contents of the log file (`logs/<username>.log`) to https://gist.github.com/ and post a link here.
         3. Create another gist with your console output, just in case. Paste a link here as well.
     validations:
       required: true

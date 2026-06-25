@@ -1,47 +1,48 @@
-FROM python:3.10-bullseye
+# syntax=docker/dockerfile:1
 
-ARG BUILDX_QEMU_ENV
+# ---- Builder stage -------------------------------------------------------
+FROM python:3.12-slim AS builder
 
-WORKDIR /usr/src/app
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
-COPY ./requirements.txt ./
+WORKDIR /build
 
-ENV CRYPTOGRAPHY_DONT_BUILD_RUST=1
+COPY pyproject.toml README.md ./
+COPY twitch_miner ./twitch_miner
 
-RUN pip install --upgrade pip
+# Build a self-contained wheel and install it into an isolated prefix so the
+# runtime image stays minimal (no build tooling, no caches).
+RUN python -m pip install --upgrade pip build \
+    && python -m build --wheel --outdir /dist \
+    && python -m pip install --prefix=/install /dist/*.whl
 
-RUN apt-get update
-RUN apt-get upgrade -y
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --fix-missing --no-install-recommends \
-    gcc \
-    libffi-dev \
-    rustc \
-    zlib1g-dev \
-    libjpeg-dev \
-    libssl-dev \
-    libblas-dev \
-    liblapack-dev \
-    make \
-    cmake \    
-    automake \
-    ninja-build \
-    g++ \
-    subversion \
-    python3-dev \
-    python3.9 \
-    python3.9-dev \
-    python3.9-minimal \
-  && if [ "${BUILDX_QEMU_ENV}" = "true" ] && [ "$(getconf LONG_BIT)" = "32" ]; then \
-        pip install -U cryptography==3.3.2; \
-     fi \
-  && pip install -r requirements.txt \
-  && pip cache purge \
-  && apt-get remove -y gcc rustc \
-  && apt-get autoremove -y \
-  && apt-get autoclean -y \
-  && apt-get clean -y \
-  && rm -rf /var/lib/apt/lists/* \
-  && rm -rf /usr/share/doc/*
+# ---- Runtime stage -------------------------------------------------------
+FROM python:3.12-slim AS runtime
 
-ADD ./TwitchChannelPointsMiner ./TwitchChannelPointsMiner
-ENTRYPOINT [ "python", "run.py" ]
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    TZ=UTC
+
+# Run as an unprivileged user.
+RUN groupadd --system miner \
+    && useradd --system --gid miner --create-home --home-dir /app miner
+
+WORKDIR /app
+
+COPY --from=builder /install /usr/local
+
+# Volume mount points (also declared in docker-compose.yml).
+RUN mkdir -p /app/config /app/cookies /app/analytics /app/logs \
+    && chown -R miner:miner /app
+
+USER miner
+
+VOLUME ["/app/cookies", "/app/analytics", "/app/logs"]
+
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
+    CMD python -c "import twitch_miner" || exit 1
+
+ENTRYPOINT ["python", "-m", "twitch_miner"]
+CMD ["--config", "/app/config/config.yaml"]

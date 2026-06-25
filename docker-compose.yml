@@ -1,0 +1,27 @@
+services:
+  twitch-miner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: twitch-miner:latest
+    container_name: twitch-miner
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ./config/config.yaml:/app/config/config.yaml:ro
+      - ./cookies:/app/cookies
+      - ./analytics:/app/analytics
+      - ./logs:/app/logs
+    ports:
+      # Analytics dashboard (host:container). Adjust if you change the config.
+      - "${ANALYTICS_PORT:-5000}:5000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import twitch_miner"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    stop_grace_period: 30s
