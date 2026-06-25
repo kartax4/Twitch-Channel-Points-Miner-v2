@@ -38,6 +38,9 @@ twitch-miner = "twitch_miner.__main__:main"
 [tool.setuptools.packages.find]
 include = ["twitch_miner*"]
 
+[tool.setuptools.package-data]
+"twitch_miner.analytics" = ["static/*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
