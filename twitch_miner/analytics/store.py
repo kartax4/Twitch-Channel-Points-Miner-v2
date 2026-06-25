@@ -74,7 +74,8 @@ class AnalyticsStore:
         if not path.exists():
             return {"series": [], "annotations": []}
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+            return data
         except (json.JSONDecodeError, OSError) as exc:
             logger.debug("Could not read analytics for {}: {}", username, exc)
             return {"series": [], "annotations": []}

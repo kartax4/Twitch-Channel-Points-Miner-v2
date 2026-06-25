@@ -80,7 +80,7 @@ class WatchService:
 
         index = {s.username: i for i, s in enumerate(self._registry.all())}
 
-        def sort_key(streamer: Streamer) -> tuple:
+        def sort_key(streamer: Streamer) -> tuple[float, ...]:
             key: list[float] = []
             for priority in self._priority:
                 key.append(self._priority_score(streamer, priority, index))

@@ -14,26 +14,39 @@ Example env override::
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import ValidationError
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from twitch_miner.config.models import AppConfig
 from twitch_miner.core.exceptions import ConfigError
 
+_ENV_PREFIX = "TWITCH_MINER__"
+_ENV_DELIM = "__"
 
-class _EnvSettings(BaseSettings):
-    """Captures environment overrides as an arbitrarily nested mapping."""
 
-    model_config = SettingsConfigDict(
-        env_prefix="TWITCH_MINER__",
-        env_nested_delimiter="__",
-        extra="allow",
-        case_sensitive=False,
-    )
+def _env_overrides() -> dict[str, Any]:
+    """Build a nested override mapping from ``TWITCH_MINER__SECTION__KEY`` vars.
+
+    Values remain strings; pydantic coerces them during validation.
+    """
+
+    overrides: dict[str, Any] = {}
+    for raw_key, value in os.environ.items():
+        if not raw_key.startswith(_ENV_PREFIX):
+            continue
+        path = raw_key[len(_ENV_PREFIX) :].lower().split(_ENV_DELIM)
+        cursor = overrides
+        for part in path[:-1]:
+            cursor = cursor.setdefault(part, {})
+            if not isinstance(cursor, dict):  # conflicting scalar/section
+                break
+        else:
+            cursor[path[-1]] = value
+    return overrides
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -75,8 +88,7 @@ def load_config(path: str | Path) -> AppConfig:
 
     config_path = Path(path).expanduser()
     file_data = _read_yaml(config_path)
-    env_data = _EnvSettings().model_dump(exclude_unset=True)
-    merged = _deep_merge(file_data, env_data)
+    merged = _deep_merge(file_data, _env_overrides())
 
     try:
         return AppConfig.model_validate(merged)

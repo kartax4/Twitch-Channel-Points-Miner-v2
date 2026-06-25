@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from twitch_miner.core.constants import GqlOperations
+from twitch_miner.core.constants import GqlOperation, GqlOperations
 from twitch_miner.core.gql import GqlClient
 from twitch_miner.core.http import AsyncHttpClient
 from twitch_miner.core.logger import logger
@@ -139,7 +139,7 @@ class TwitchApi:
         results: list[dict[str, Any]] = []
         for start in range(0, len(campaign_ids), _CAMPAIGN_CHUNK):
             chunk = campaign_ids[start : start + _CAMPAIGN_CHUNK]
-            batch = [
+            batch: list[tuple[GqlOperation, dict[str, Any] | None]] = [
                 (
                     GqlOperations.DropCampaignDetails,
                     {"channelLogin": channel_id or "0", "dropID": cid},

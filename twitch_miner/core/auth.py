@@ -67,7 +67,7 @@ class TokenBundle:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TokenBundle:
-        known = set(cls.__dataclass_fields__)  # type: ignore[attr-defined]
+        known = set(cls.__dataclass_fields__)
         return cls(**{k: v for k, v in data.items() if k in known})
 
 
@@ -168,8 +168,8 @@ class AuthManager:
                     logger.info("Restored valid session for {}", self._username)
                     return self._bundle
                 logger.info("Stored session invalid; attempting refresh.")
-                if await self._try_refresh():
-                    return self._bundle  # type: ignore[return-value]
+                if await self._try_refresh() and self._bundle is not None:
+                    return self._bundle
                 logger.warning("Refresh failed; interactive re-login required.")
 
             self._bundle = await self._device_login()
@@ -203,8 +203,8 @@ class AuthManager:
         """
 
         async with self._lock:
-            if await self._try_refresh():
-                return self._bundle.access_token  # type: ignore[union-attr]
+            if await self._try_refresh() and self._bundle is not None:
+                return self._bundle.access_token
             raise TwitchAuthError("Forced refresh failed; re-login required.")
 
     # --- internal helpers -------------------------------------------------- #
@@ -256,7 +256,7 @@ class AuthManager:
                     "grant_type": _DEVICE_GRANT,
                 },
             )
-            data = response.json()
+            data: dict[str, Any] = response.json()
             if response.status_code == 200 and "access_token" in data:
                 logger.info("Device authorization granted for {}", self._username)
                 return data

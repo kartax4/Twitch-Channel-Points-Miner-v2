@@ -9,6 +9,7 @@ on ``401`` / ``ERR_BADAUTH`` before retrying.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from typing import Any
 
 from twitch_miner.core.auth import AuthManager
@@ -100,11 +101,12 @@ class GqlClient:
                 operation=operation.name,
             )
         self._raise_on_errors(payload, operation.name)
-        return payload.get("data", {})
+        data: dict[str, Any] = payload.get("data", {})
+        return data
 
     async def execute_batch(
         self,
-        operations: list[tuple[GqlOperation, dict[str, Any] | None]],
+        operations: Sequence[tuple[GqlOperation, dict[str, Any] | None]],
     ) -> list[dict[str, Any]]:
         """Run multiple operations in one request, returning their data payloads.
 
