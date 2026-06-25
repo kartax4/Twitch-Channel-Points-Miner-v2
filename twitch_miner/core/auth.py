@@ -25,8 +25,8 @@ from pathlib import Path
 from typing import Any
 
 from twitch_miner.core.constants import (
+    CLIENT_ID,
     DEVICE_AUTH_HEADERS,
-    DEVICE_CLIENT_ID,
     OAUTH_DEVICE_URL,
     OAUTH_SCOPES,
     OAUTH_TOKEN_URL,
@@ -135,6 +135,10 @@ class AuthManager:
         self._device_id = stable_device_id(username)
         self._bundle: TokenBundle | None = None
         self._lock = asyncio.Lock()
+        # Public device clients cannot refresh (Twitch demands a client secret).
+        # Once a refresh is rejected we stop attempting it to avoid log spam and
+        # fall back to the (long-lived) device token until it truly expires.
+        self._refresh_disabled = False
 
     @property
     def device_id(self) -> str:
@@ -187,11 +191,12 @@ class AuthManager:
         async with self._lock:
             if self._bundle is None:
                 raise TwitchAuthError("Not authenticated; call login() first.")
-            if self._bundle.is_expiring() and await self._try_refresh():
-                return self._bundle.access_token
-            if await self._validate():
+            # Fast path: a non-expiring (or unknown-expiry) token is used as-is.
+            if not self._bundle.is_expiring():
                 return self._bundle.access_token
             if await self._try_refresh():
+                return self._bundle.access_token
+            if await self._validate():
                 return self._bundle.access_token
             raise TwitchAuthError("Session expired and could not be refreshed.")
 
@@ -199,13 +204,16 @@ class AuthManager:
         """Force a refresh after an upstream ``ERR_BADAUTH``/401.
 
         Raises:
-            TwitchAuthError: If refresh fails.
+            TwitchAuthError: If refresh is unavailable or fails.
         """
 
         async with self._lock:
             if await self._try_refresh() and self._bundle is not None:
                 return self._bundle.access_token
-            raise TwitchAuthError("Forced refresh failed; re-login required.")
+            raise TwitchAuthError(
+                "Token rejected and refresh is unavailable; delete the cookies "
+                "file and re-run to log in again."
+            )
 
     # --- internal helpers -------------------------------------------------- #
     async def _device_login(self) -> TokenBundle:
@@ -227,7 +235,7 @@ class AuthManager:
         response = await self._http.post(
             OAUTH_DEVICE_URL,
             headers=self._device_headers(),
-            data={"client_id": DEVICE_CLIENT_ID, "scopes": OAUTH_SCOPES},
+            data={"client_id": CLIENT_ID, "scopes": OAUTH_SCOPES},
         )
         if response.status_code != 200:
             raise TwitchAuthError(
@@ -251,7 +259,7 @@ class AuthManager:
                 OAUTH_TOKEN_URL,
                 headers=self._device_headers(),
                 data={
-                    "client_id": DEVICE_CLIENT_ID,
+                    "client_id": CLIENT_ID,
                     "device_code": code.device_code,
                     "grant_type": _DEVICE_GRANT,
                 },
@@ -268,11 +276,22 @@ class AuthManager:
         raise TwitchAuthError("Device authorization timed out; please retry.")
 
     async def _try_refresh(self) -> bool:
+        # Skip silently once we've learned this client can't refresh.
+        if self._refresh_disabled:
+            return False
         try:
             await self.refresh()
             return True
         except TokenRefreshError as exc:
-            logger.warning("Token refresh failed: {}", exc)
+            # The public device client has no secret, so Twitch rejects the
+            # refresh grant. Disable further attempts and rely on the long-lived
+            # device token instead of spamming the endpoint.
+            self._refresh_disabled = True
+            logger.warning(
+                "Token refresh unavailable for this client ({}); using the "
+                "existing device token. Re-login only needed if it is rejected.",
+                exc,
+            )
             return False
 
     async def refresh(self) -> TokenBundle:
@@ -288,7 +307,7 @@ class AuthManager:
             OAUTH_TOKEN_URL,
             headers=self._device_headers(),
             data={
-                "client_id": DEVICE_CLIENT_ID,
+                "client_id": CLIENT_ID,
                 "grant_type": _REFRESH_GRANT,
                 "refresh_token": self._bundle.refresh_token,
             },

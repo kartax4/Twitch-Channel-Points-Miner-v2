@@ -27,7 +27,9 @@ from twitch_miner.utils.ids import random_session_id
 
 _BUILD_ID_RE = re.compile(r'"clientId":"[^"]+","build(?:ID|Id)":"([0-9a-f-]+)"')
 _BUILD_ID_RE_ALT = re.compile(r"__twilightBuildID=\"([0-9a-f-]+)\"")
-_BADAUTH_MARKERS = ("ERR_BADAUTH", "service error", "failed integrity check")
+# Only treat a genuine bad-auth token marker as a trigger for token refresh.
+# (Transient "service error" and integrity messages are handled elsewhere.)
+_BADAUTH_MARKERS = ("ERR_BADAUTH",)
 
 
 class GqlClient:

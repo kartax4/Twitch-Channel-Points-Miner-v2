@@ -31,14 +31,19 @@ IRC_PORT: Final = 6667
 # --------------------------------------------------------------------------- #
 # Client identity (Twitch web client)
 # --------------------------------------------------------------------------- #
-# The public web Client-ID. Using the web client-id (rather than a mobile/TV id)
-# keeps GQL behaviour consistent with the browser headers below.
-CLIENT_ID: Final = "kimne78kx3ncx6brgo4mv6wki5h1ko"
+# Single Client-ID used for BOTH the OAuth device-code login and all GQL calls.
+#
+# This MUST be consistent: the OAuth access token is bound to the client that
+# minted it, and Twitch rejects mismatched usage. We use the public Android-TV
+# client because (a) it supports the device-code grant the headless login relies
+# on, and (b) unlike the web client (kimne78kx3ncx6brgo4mv6wki5h1ko) it is exempt
+# from ``Client-Integrity`` enforcement, which would otherwise make most GQL
+# operations (e.g. ViewerDropsDashboard) fail with "failed integrity check".
+CLIENT_ID: Final = "ue6666qo983tsx6so1t0vnawi233wa"
 
-# The web Client-ID does not support the OAuth *device-code* grant, so the login
-# flow uses the public Android-TV client id (which does). Once authenticated,
-# the resulting OAuth token is used with the web ``CLIENT_ID`` for GQL calls.
-DEVICE_CLIENT_ID: Final = "ue6666qo983tsx6so1t0vnawi233wa"
+# The web Client-ID, kept for reference. It enforces Client-Integrity and is not
+# compatible with device-flow tokens, so it is intentionally not used for GQL.
+WEB_CLIENT_ID: Final = "kimne78kx3ncx6brgo4mv6wki5h1ko"
 
 # Headers presented during the device-code OAuth flow (mimics the TV client).
 DEVICE_AUTH_HEADERS: Final[dict[str, str]] = {
@@ -224,8 +229,8 @@ __all__ = [
     "BROWSER_HEADERS",
     "CLIENT_ID",
     "DEVICE_AUTH_HEADERS",
-    "DEVICE_CLIENT_ID",
     "DEFAULT_CLIENT_VERSION",
+    "WEB_CLIENT_ID",
     "DEFAULT_USER_AGENT",
     "GQL_INTEGRITY_URL",
     "GQL_URL",
