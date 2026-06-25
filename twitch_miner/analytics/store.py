@@ -30,7 +30,14 @@ class AnalyticsStore:
 
     def __init__(self, base_path: str | Path) -> None:
         self._base = Path(base_path)
-        self._base.mkdir(parents=True, exist_ok=True)
+        try:
+            self._base.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            logger.warning(
+                "Analytics directory {} is not writable ({}); persistence may fail.",
+                self._base,
+                exc,
+            )
         self._locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
     def _path(self, username: str) -> Path:

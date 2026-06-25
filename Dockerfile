@@ -25,24 +25,29 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     TZ=UTC
 
-# Run as an unprivileged user.
+# Create an unprivileged user and install gosu for safe privilege dropping.
 RUN groupadd --system miner \
-    && useradd --system --gid miner --create-home --home-dir /app miner
+    && useradd --system --gid miner --create-home --home-dir /app miner \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends gosu \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY --from=builder /install /usr/local
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Volume mount points (also declared in docker-compose.yml).
 RUN mkdir -p /app/config /app/cookies /app/analytics /app/logs \
     && chown -R miner:miner /app
 
-USER miner
-
+# The entrypoint starts as root to fix bind-mount ownership, then drops to the
+# unprivileged "miner" user via gosu before exec'ing the command below.
 VOLUME ["/app/cookies", "/app/analytics", "/app/logs"]
 
 HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
     CMD python -c "import twitch_miner" || exit 1
 
-ENTRYPOINT ["python", "-m", "twitch_miner"]
-CMD ["--config", "/app/config/config.yaml"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["python", "-m", "twitch_miner", "--config", "/app/config/config.yaml"]

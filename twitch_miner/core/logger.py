@@ -67,6 +67,41 @@ def _install_intercept(level: str) -> None:
     logging.getLogger().setLevel(getattr(logging, level, logging.INFO))
 
 
+def _add_file_sink(
+    config: LoggingConfig, username: str, logs_path: Path
+) -> Path | None:
+    """Add the rotating file sink, degrading to console-only on failure.
+
+    A non-writable log directory (a common Docker bind-mount footgun) must never
+    crash startup, so any filesystem error is logged and swallowed.
+    """
+
+    try:
+        logs_path.mkdir(parents=True, exist_ok=True)
+        log_file = logs_path / f"{username}.log"
+        logger.add(
+            log_file,
+            level=config.level,
+            format=_FILE_FORMAT,
+            rotation=config.rotation,
+            retention=config.retention,
+            compression="zip",
+            encoding="utf-8",
+            enqueue=True,
+            backtrace=True,
+            diagnose=False,
+        )
+        return log_file
+    except OSError as exc:
+        logger.warning(
+            "File logging disabled; cannot write to {} ({}). "
+            "Check volume permissions.",
+            logs_path,
+            exc,
+        )
+        return None
+
+
 def configure(
     config: LoggingConfig,
     *,
@@ -98,21 +133,7 @@ def configure(
 
     log_file: Path | None = None
     if config.file:
-        logs_path = Path(logs_dir)
-        logs_path.mkdir(parents=True, exist_ok=True)
-        log_file = logs_path / f"{username}.log"
-        logger.add(
-            log_file,
-            level=config.level,
-            format=_FILE_FORMAT,
-            rotation=config.rotation,
-            retention=config.retention,
-            compression="zip",
-            encoding="utf-8",
-            enqueue=True,
-            backtrace=True,
-            diagnose=False,
-        )
+        log_file = _add_file_sink(config, username, Path(logs_dir))
 
     _install_intercept(config.level)
     logger.debug("Logging configured (level={}, file={})", config.level, log_file)
