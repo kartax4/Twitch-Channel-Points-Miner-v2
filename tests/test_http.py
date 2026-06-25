@@ -39,6 +39,19 @@ async def test_rate_limit_exhausts_and_raises() -> None:
     await client.aclose()
 
 
+def test_retry_after_is_honored() -> None:
+    from unittest.mock import MagicMock
+
+    from twitch_miner.core.http import _make_wait
+
+    wait = _make_wait(initial=0.0, maximum=0.0)
+    state = MagicMock()
+    state.attempt_number = 1
+    state.outcome.exception.return_value = RateLimitError("rl", retry_after=42.0)
+    # Exponential base is ~0 here, so the Retry-After hint must dominate.
+    assert wait(state) == 42.0
+
+
 def test_gql_operation_build_merges_variables() -> None:
     body = GqlOperations.GetIDFromLogin.build({"login": "abc"})
     assert body["operationName"] == "GetIDFromLogin"

@@ -101,7 +101,7 @@ class _Connection:
                     logger.debug("PubSub connection {} established", self._index)
                     await self._listen(set(self.topics), listen=True)
                     backoff = 1.0
-                    await asyncio.gather(self._reader(ws), self._heartbeat(ws))
+                    await self._pump(ws)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -117,6 +117,26 @@ class _Connection:
                 backoff = min(backoff * 2, _MAX_BACKOFF)
             finally:
                 self._ws = None
+
+    async def _pump(self, ws: ClientConnection) -> None:
+        """Run the reader and heartbeat together, cancelling the loser.
+
+        Whichever task finishes first (clean close, error, or missed PONG) wins
+        the race; the other is cancelled so no orphaned task survives. The
+        winner's result is re-raised to drive the reconnect path in
+        :meth:`_run_forever`.
+        """
+
+        reader = asyncio.create_task(self._reader(ws), name="pubsub-reader")
+        heartbeat = asyncio.create_task(self._heartbeat(ws), name="pubsub-heartbeat")
+        done, pending = await asyncio.wait(
+            {reader, heartbeat}, return_when=asyncio.FIRST_COMPLETED
+        )
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+        for task in done:
+            task.result()  # re-raise to trigger reconnect
 
     async def _reader(self, ws: ClientConnection) -> None:
         async for raw in ws:

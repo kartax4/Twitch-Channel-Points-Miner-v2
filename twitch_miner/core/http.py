@@ -16,6 +16,7 @@ spreading load during Twitch outages.
 from __future__ import annotations
 
 import types
+from collections.abc import Callable
 from typing import Any, Final
 
 import httpx
@@ -34,18 +35,21 @@ from twitch_miner.core.logger import logger
 # Status codes that are safe (and worthwhile) to retry.
 RETRYABLE_STATUS: Final[frozenset[int]] = frozenset({429, 500, 502, 503, 504})
 
-# Network-level exceptions that indicate a transient, retryable failure.
+
+class _RetryableServerError(httpx.HTTPError):
+    """Internal marker for a retryable 5xx response."""
+
+
+# Exceptions that indicate a transient, retryable failure (hoisted to module
+# scope so it is built once rather than per-request).
 _RETRYABLE_EXC: Final = (
     httpx.TransportError,  # covers ConnectError, ReadError, TimeoutException, ...
     RateLimitError,
+    _RetryableServerError,
 )
 
 DEFAULT_TIMEOUT: Final = httpx.Timeout(connect=10.0, read=20.0, write=20.0, pool=10.0)
 DEFAULT_LIMITS: Final = httpx.Limits(max_connections=50, max_keepalive_connections=20)
-
-
-class _RetryableServerError(httpx.HTTPError):
-    """Internal marker for a retryable 5xx response."""
 
 
 def build_async_client(
@@ -86,6 +90,26 @@ def _parse_retry_after(response: httpx.Response) -> float | None:
         return float(raw)
     except ValueError:
         return None
+
+
+def _make_wait(initial: float, maximum: float) -> Callable[[RetryCallState], float]:
+    """Build a wait strategy that honours a 429 ``Retry-After`` hint.
+
+    Falls back to exponential backoff with jitter, but never waits less than the
+    server-provided ``Retry-After`` when present, so we don't hammer a
+    rate-limited endpoint.
+    """
+
+    base = wait_exponential_jitter(initial=initial, max=maximum)
+
+    def _wait(retry_state: RetryCallState) -> float:
+        backoff = base(retry_state)
+        exc = retry_state.outcome.exception() if retry_state.outcome else None
+        if isinstance(exc, RateLimitError) and exc.retry_after:
+            return max(float(exc.retry_after), backoff)
+        return backoff
+
+    return _wait
 
 
 def _log_before_sleep(retry_state: RetryCallState) -> None:
@@ -142,11 +166,8 @@ class AsyncHttpClient:
         retrying = AsyncRetrying(
             reraise=True,
             stop=stop_after_attempt(self._max_attempts),
-            wait=wait_exponential_jitter(
-                initial=self._initial_backoff,
-                max=self._max_backoff,
-            ),
-            retry=retry_if_exception_type(_RETRYABLE_EXC + (_RetryableServerError,)),
+            wait=_make_wait(self._initial_backoff, self._max_backoff),
+            retry=retry_if_exception_type(_RETRYABLE_EXC),
             before_sleep=_log_before_sleep,
         )
 
