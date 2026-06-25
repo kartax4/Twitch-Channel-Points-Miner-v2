@@ -43,8 +43,6 @@ include = ["twitch_miner*"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-# Only lint the new package and its tests; the legacy tree is left untouched.
-extend-exclude = ["TwitchChannelPointsMiner", "example.py", "pickle_view.py", "setup.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "C4", "SIM", "ASYNC"]
