@@ -12,7 +12,7 @@ license = { text = "GPL-3.0-or-later" }
 authors = [{ name = "Twitch Miner Contributors" }]
 keywords = ["twitch", "channel-points", "drops", "asyncio", "miner"]
 dependencies = [
-    "httpx>=0.27",
+    "httpx[http2]>=0.27",
     "websockets>=12.0",
     "aiohttp>=3.9",
     "pydantic>=2.6",
