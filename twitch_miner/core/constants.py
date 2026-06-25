@@ -35,6 +35,22 @@ IRC_PORT: Final = 6667
 # keeps GQL behaviour consistent with the browser headers below.
 CLIENT_ID: Final = "kimne78kx3ncx6brgo4mv6wki5h1ko"
 
+# The web Client-ID does not support the OAuth *device-code* grant, so the login
+# flow uses the public Android-TV client id (which does). Once authenticated,
+# the resulting OAuth token is used with the web ``CLIENT_ID`` for GQL calls.
+DEVICE_CLIENT_ID: Final = "ue6666qo983tsx6so1t0vnawi233wa"
+
+# Headers presented during the device-code OAuth flow (mimics the TV client).
+DEVICE_AUTH_HEADERS: Final[dict[str, str]] = {
+    "Accept": "application/json",
+    "Origin": "https://android.tv.twitch.tv",
+    "Referer": "https://android.tv.twitch.tv/",
+    "User-Agent": (
+        "Mozilla/5.0 (Linux; Android 7.1; Smart Box C1) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+}
+
 # OAuth scopes requested during the device-code login flow.
 OAUTH_SCOPES: Final = (
     "channel_read chat:read user_blocks_edit user_blocks_read "
@@ -207,6 +223,8 @@ class GqlOperations:
 __all__ = [
     "BROWSER_HEADERS",
     "CLIENT_ID",
+    "DEVICE_AUTH_HEADERS",
+    "DEVICE_CLIENT_ID",
     "DEFAULT_CLIENT_VERSION",
     "DEFAULT_USER_AGENT",
     "GQL_INTEGRITY_URL",
